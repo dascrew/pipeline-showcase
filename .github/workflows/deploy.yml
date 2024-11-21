@@ -1,0 +1,147 @@
+name: Deploy Lambda Function
+on:
+  push:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to (test/production)'
+        required: true
+        default: 'test'
+        type: choice
+        options:
+          - test
+          - production
+      create_secret:
+        description: 'Create missing secret? (yes/no)'
+        required: false
+        default: 'no'
+      db_host:
+        description: 'Database host (required if creating secret)'
+        required: false
+      db_user:
+        description: 'Database user (required if creating secret)'
+        required: false
+      db_password:
+        description: 'Database password (required if creating secret)'
+        required: false
+      db_name:
+        description: 'Database name (required if creating secret)'
+        required: false
+      db_port:
+        description: 'Database port (required if creating secret)'
+        required: false
+
+jobs:
+  determine_environment:
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.set-env.outputs.environment }}
+    steps:
+      - id: set-env
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "environment=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "environment=production" >> $GITHUB_OUTPUT
+          else
+            echo "environment=test" >> $GITHUB_OUTPUT
+          fi
+
+  deploy:
+    needs: determine_environment
+    runs-on: ubuntu-latest
+    environment: ${{ needs.determine_environment.outputs.environment }}
+    
+    outputs:
+      secret_exists: ${{ steps.check_secret.outputs.secret_exists }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+    
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.12'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r lambda/src/requirements.txt
+    
+    - name: Check code formatting
+      run: |
+        pip install black
+        black --check lambda/src/
+    
+    - name: Lint code
+      run: |
+        pip install flake8
+        flake8 --max-line-length=88 --ignore=E501,W503 lambda/src/    
+    
+    - name: Run safety checks
+      run: |
+        pip install safety
+        safety check --full lambda/src/
+    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ secrets.AWS_REGION }}
+        role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+        role-duration-seconds: 1200
+    
+    - name: Check if secret exists
+      id: check_secret
+      run: |
+        # Use different secret names for different environments
+        SECRET_NAME="${{ secrets.SECRET_NAME_PREFIX }}_${{ needs.determine_environment.outputs.environment }}"
+        if [ -z "$SECRET_NAME" ]; then
+          echo "Error: SECRET_NAME_PREFIX is not set in GitHub secrets"
+          exit 1
+        fi
+        SECRET_EXISTS=$(aws secretsmanager list-secrets --query "SecretList[?Name=='$SECRET_NAME'].Name" --output text) || exit 1
+        if [ -z "$SECRET_EXISTS" ]; then
+          echo "secret_exists=false" >> $GITHUB_OUTPUT
+          if [ "${{ github.event.inputs.create_secret }}" != "yes" ]; then
+            echo "::warning::Secret '$SECRET_NAME' does not exist in AWS Secrets Manager. Run this workflow manually with create_secret=yes and provide database details to create it."
+            exit 1
+          fi
+        else
+          echo "secret_exists=true" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Validate secret creation inputs
+      if: steps.check_secret.outputs.secret_exists == 'false' && github.event.inputs.create_secret == 'yes'
+      run: |
+        missing_fields=()
+        [ -z "${{ github.event.inputs.db_host }}" ] && missing_fields+=("db_host")
+        [ -z "${{ github.event.inputs.db_user }}" ] && missing_fields+=("db_user")
+        [ -z "${{ github.event.inputs.db_password }}" ] && missing_fields+=("db_password")
+        [ -z "${{ github.event.inputs.db_name }}" ] && missing_fields+=("db_name")
+        [ -z "${{ github.event.inputs.db_port }}" ] && missing_fields+=("db_port")
+        
+        if [ ${#missing_fields[@]} -ne 0 ]; then
+          echo "Error: The following required fields are missing: ${missing_fields[*]}"
+          exit 1
+        fi
+    
+    - name: Create secret if missing
+      if: steps.check_secret.outputs.secret_exists == 'false' && github.event.inputs.create_secret == 'yes'
+      run: |
+        SECRET_NAME="${{ secrets.SECRET_NAME_PREFIX }}_${{ needs.determine_environment.outputs.environment }}"
+        aws secretsmanager create-secret \
+          --name "$SECRET_NAME" \
+          --secret-string '{
+            "DB_HOST": "${{ github.event.inputs.db_host }}",
+            "DB_USER": "${{ github.event.inputs.db_user }}",
+            "DB_PASSWORD": "${{ github.event.inputs.db_password }}",
+            "DB_NAME": "${{ github.event.inputs.db_name }}",
+            "DB_PORT": "${{ github.event.inputs.db_port }}"
+          }' || exit 1
+        echo "Created new secret connection in Secrets Manager"
