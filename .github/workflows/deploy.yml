@@ -85,7 +85,7 @@ jobs:
     - name: Run safety checks
       run: |
         pip install safety
-        safety check --full lambda/src/
+        safety check --full-report lambda/src/
     
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v1
