@@ -80,7 +80,7 @@ jobs:
     - name: Lint code
       run: |
         pip install flake8
-        flake8 --max-line-length=88 --ignore=E501,W503 lambda/src/    
+        flake8 --max-line-length=120 --ignore=E501,W503 lambda/src/    
     
     - name: Run safety checks
       run: |
