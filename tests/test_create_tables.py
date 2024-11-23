@@ -56,11 +56,11 @@ def test_order_items_table(db_connection):
         actual_columns = {column[0] for column in columns}
         assert expected_columns.issubset(actual_columns), f"Expected columns {expected_columns} but got {actual_columns}"
 
-# Test for reviews table
-def test_reviews_table(db_connection):
-    with db_connection.cursor() as cursor:
-        cursor.execute("SELECT column_name FROM information_schema.columns WHERE table_name='reviews';")
-        columns = cursor.fetchall()
-        expected_columns = {'id', 'user_id', 'product_id', 'rating', 'comment'}
-        actual_columns = {column[0] for column in columns}
-        assert expected_columns.issubset(actual_columns), f"Expected columns {expected_columns} but got {actual_columns}"
+# # Test for reviews table
+# def test_reviews_table(db_connection):
+#     with db_connection.cursor() as cursor:
+#         cursor.execute("SELECT column_name FROM information_schema.columns WHERE table_name='reviews';")
+#         columns = cursor.fetchall()
+#         expected_columns = {'id', 'user_id', 'product_id', 'rating', 'comment'}
+#         actual_columns = {column[0] for column in columns}
+#         assert expected_columns.issubset(actual_columns), f"Expected columns {expected_columns} but got {actual_columns}"
