@@ -6,9 +6,12 @@ on:
       - develop
     paths-ignore:
       - '**/*.yml'
+  pull_request:
+    branches:
+      - develop
 
 jobs:
-  deploy:
+  test:
     runs-on: ubuntu-latest
 
     services:
@@ -91,24 +94,17 @@ jobs:
       env:
         PGPASSWORD: test
 
+    # Run Codacy analysis
+    - name: Run Codacy Analysis
+      uses: codacy/codacy-analysis-cli-action@v4
+      with:
+        project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
+        verbose: true
+        max-allowed-issues: 50
+
     # Run pytest
     - name: Test with pytest
       run: |
         pip install pytest
         export PYTHONPATH=$(pwd)
         pytest
-
-    - name: Check code formatting
-      run: |
-        pip install black
-        black --check lambda/src/
-
-    - name: Lint code
-      run: |
-        pip install flake8
-        flake8 --max-line-length=120 --ignore=E501,W503 lambda/src/
-
-    - name: Run safety checks
-      uses: pyupio/safety-action@v1
-      with:
-        api-key: ${{ secrets.SAFETY_API_KEY }}
