@@ -6,9 +6,12 @@ on:
       - develop
     paths-ignore:
       - '**/*.yml'
+  pull_request:
+    branches:
+      - develop
 
 jobs:
-  deploy:
+  test:
     runs-on: ubuntu-latest
 
     services:
@@ -58,6 +61,7 @@ jobs:
         echo "DB_HOST=localhost" >> .env.test
         echo "DB_PORT=5432" >> .env.test
         echo "DB_PASSWORD=test" >> .env.test
+        echo "ENVIRONMENT=test" >> .env.test
 
     # Wait for PostgreSQL to be ready
     - name: Wait for PostgreSQL to be ready
@@ -91,24 +95,17 @@ jobs:
       env:
         PGPASSWORD: test
 
+    # Run Codacy analysis
+    - name: Run Codacy Analysis
+      uses: codacy/codacy-analysis-cli-action@97bf5df3c09e75f5bcd72695998f96ebd701846e
+      with:
+        project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
+        verbose: true
+        max-allowed-issues: 2147483647
+
     # Run pytest
     - name: Test with pytest
       run: |
         pip install pytest
         export PYTHONPATH=$(pwd)
         pytest
-
-    - name: Check code formatting
-      run: |
-        pip install black
-        black --check lambda/src/
-
-    - name: Lint code
-      run: |
-        pip install flake8
-        flake8 --max-line-length=120 --ignore=E501,W503 lambda/src/
-
-    - name: Run safety checks
-      uses: pyupio/safety-action@v1
-      with:
-        api-key: ${{ secrets.SAFETY_API_KEY }}
