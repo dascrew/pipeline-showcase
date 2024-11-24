@@ -24,6 +24,7 @@ create-env-file:
 	@echo "DB_HOST=$(DB_HOST)" >> .env.test
 	@echo "DB_PORT=$(DB_PORT)" >> .env.test
 	@echo "DB_PASSWORD=$(PGPASSWORD)" >> .env.test
+	@echo "ENVIRONMENT=$(ENVIRONMENT)" >> .env.test
 	@echo ".env.test file created successfully."
 
 # Rule to drop the database if it exists and create it

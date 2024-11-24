@@ -61,6 +61,7 @@ jobs:
         echo "DB_HOST=localhost" >> .env.test
         echo "DB_PORT=5432" >> .env.test
         echo "DB_PASSWORD=test" >> .env.test
+        echo "ENVIRONMENT=test" >> .env.test
 
     # Wait for PostgreSQL to be ready
     - name: Wait for PostgreSQL to be ready
