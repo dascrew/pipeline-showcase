@@ -1,57 +1,50 @@
 import unittest
-from unittest.mock import patch, mock_open
-import os
-from src.utils import local_db_config
+from unittest.mock import patch, MagicMock
+from src.utils import get_db_connection
 
-class TestDBConfig(unittest.TestCase):
 
-    @patch.dict(os.environ, {
-        'DB_HOST': 'localhost',
-        'DB_PORT': '5432',
-        'DB_NAME': 'testdb',
-        'DB_USER': 'testuser',
-        'DB_PASSWORD': 'testpass'
-    })
-    @patch('builtins.open', new_callable=mock_open, read_data='')
-    @patch('src.utils.load_dotenv', side_effect=lambda *args, **kwargs: None)
-    def test_load_env_variables(self, mock_load_dotenv, mock_file):
-        config = local_db_config('.env.test')
-        expected_config = {
-            'host': 'localhost',
-            'port': '5432',
-            'dbname': 'testdb',
-            'user': 'testuser',
-            'password': 'testpass'
+class TestGetDbConnection(unittest.TestCase):
+    @patch("psycopg.connect")
+    def test_get_db_connection_success(self, mock_connect):
+        db_credentials = {
+            "host": "localhost",
+            "port": 5432,
+            "dbname": "testdb",
+            "user": "testuser",
+            "password": "testpass",
         }
-        self.assertEqual(config, expected_config)
+        mock_conn = MagicMock()
+        mock_connect.return_value = mock_conn
 
-    @patch.dict(os.environ, {}, clear=True)
-    @patch('builtins.open', new_callable=mock_open, read_data='')
-    @patch('src.utils.load_dotenv', side_effect=lambda *args, **kwargs: None)
-    def test_missing_env_variables(self, mock_load_dotenv, mock_file):
-        config = local_db_config('.env.test')
-        expected_config = {
-            'host': None,
-            'port': None,
-            'dbname': None,
-            'user': None,
-            'password': None
+        connection = get_db_connection(db_credentials)
+
+        mock_connect.assert_called_once_with(
+            host="localhost",
+            port=5432,
+            dbname="testdb",
+            user="testuser",
+            password="testpass",
+        )
+        self.assertEqual(connection, mock_conn)
+
+    @patch("psycopg.connect")
+    def test_get_db_connection_failure(self, mock_connect):
+        db_credentials = {
+            "host": "localhost",
+            "port": 5432,
+            "dbname": "testdb",
+            "user": "testuser",
+            "password": "testpass",
         }
-        self.assertEqual(config, expected_config)
+        mock_connect.side_effect = Exception("Connection failed")
 
-    @patch('builtins.open', side_effect=FileNotFoundError)
-    @patch('src.utils.load_dotenv', side_effect=lambda *args, **kwargs: None)
-    def test_file_not_found(self, mock_load_dotenv, mock_file):
-        with patch.dict(os.environ, {}, clear=True):
-            config = local_db_config('.env.test')
-            expected_config = {
-                'host': None,
-                'port': None,
-                'dbname': None,
-                'user': None,
-                'password': None
-            }
-            self.assertEqual(config, expected_config)
+        with self.assertRaises(Exception) as context:
+            get_db_connection(db_credentials)
 
-if __name__ == '__main__':
+        self.assertTrue(
+            "Failed to connect: Connection failed" in str(context.exception)
+        )
+
+
+if __name__ == "__main__":
     unittest.main()
