@@ -1,8 +1,4 @@
 import psycopg
-import boto3
-from botocore.exceptions import ClientError
-import json
-import base64
 
 def get_db_connection(db_credentials):
     """
