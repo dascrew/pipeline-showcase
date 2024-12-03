@@ -2,7 +2,6 @@ import unittest
 from unittest.mock import patch, MagicMock
 from src.utils import get_db_connection
 
-
 class TestGetDbConnection(unittest.TestCase):
     @patch("psycopg.connect")
     def test_get_db_connection_success(self, mock_connect):
@@ -36,15 +35,12 @@ class TestGetDbConnection(unittest.TestCase):
             "user": "testuser",
             "password": "testpass",
         }
-        mock_connect.side_effect = Exception("Connection failed")
+        mock_connect.side_effect = Exception("Database not found")
 
         with self.assertRaises(Exception) as context:
             get_db_connection(db_credentials)
 
-        self.assertTrue(
-            "Failed to connect: Connection failed" in str(context.exception)
-        )
-
+        self.assertEqual(str(context.exception), 'Failed to connect: Database not found')
 
 if __name__ == "__main__":
     unittest.main()
